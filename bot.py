@@ -6,9 +6,9 @@ from PIL import Image, ImageDraw, ImageOps
 from copy import deepcopy
 
 TARGET_IMG = sys.argv[1]
-GENOME_SIZE = int(sys.argv[2])
-POPULATION_SIZE = int(sys.argv[3])
-GENERATIONS = int(sys.argv[4])
+POPULATION_SIZE = int(sys.argv[2])
+GENERATIONS = int(sys.argv[3])
+GENOME_SIZE = int(sys.argv[4])
 
 def tint_image(src: Image, color: tuple=(255, 255, 255)):
     src.load()
@@ -19,7 +19,7 @@ def tint_image(src: Image, color: tuple=(255, 255, 255)):
     return result
 
 def renderBanner(genome):
-    banner = Image.new("RGBA", (400,780), pallete[0][1])
+    banner = Image.new("RGBA", (400,780), pallete[genome["baseColour"]][1])
     for i in range(len(genome["layers"])):
         p = Image.open(os.path.join(os.path.dirname(__file__), "img/pattern_" + str(genome["layers"][i]).zfill(2) + ".png"))
         pattern = tint_image(p, pallete[genome["colours"][i]][1])
@@ -28,23 +28,26 @@ def renderBanner(genome):
     return banner
 
 pallete = [
-    ["Black", (25, 25, 25)], #191919 0
-    ["Gray", (76, 76, 76)], #4c4c4c 1
-    ["Light Gray", (153, 153, 153)], #999999 2
-    ["White", (242, 242, 242)], #f2f2f2 3
-    ["Pink", (242, 127, 165)], #f27fa5 4
-    ["Magenta", (178, 76, 216)], #b24cd8 5
-    ["Purple", (127, 63, 178)], #7f3fb2 6
-    ["Blue", (51, 76, 178)], #334cb2 7
-    ["Cyan", (76, 127, 153)], #4c7f99 8
-    ["Light Blue", (102, 153, 216)], #4c7f99 9
-    ["Green", (102, 127, 51)], #667f33 10
-    ["Lime", (127, 204, 25)], #7fcc19 11
-    ["Yellow", (229, 229, 51)], #e5e533 12
-    ["Orange", (216, 127, 51)], #d87f33 13
-    ["Brown", (102, 76, 51)], #664c33 14
-    ["Red", (153, 51, 51)] #993333 15
+    ["white", (242, 242, 242)], #f2f2f2 0
+    ["orange", (216, 127, 51)], #d87f33 1
+    ["magenta", (178, 76, 216)], #b24cd8 2
+    ["light_blue", (102, 153, 216)], #4c7f99 3
+    ["yellow", (229, 229, 51)], #e5e533 4
+    ["lime", (127, 204, 25)], #7fcc19 5
+    ["pink", (242, 127, 165)], #f27fa5 6
+    ["gray", (76, 76, 76)], #4c4c4c 7
+    ["light_gray", (153, 153, 153)], #999999 8
+    ["cyan", (76, 127, 153)], #4c7f99 9
+    ["purple", (127, 63, 178)], #7f3fb2 10
+    ["blue", (51, 76, 178)], #334cb2 11
+    ["brown", (102, 76, 51)], #664c33 12
+    ["green", (102, 127, 51)], #667f33 13
+    ["red", (153, 51, 51)], #993333 14
+    ["black", (25, 25, 25)] #191919 15
 ]
+patternNames=["mc","bl","br","tl","tr","hh","bs","ts","vh","ls","cs","rs",
+"ms","sc","dls","drs","cr","ld","rud","tt","bt","mr","tts","bts","cbo",
+"bo","ss","bri","gra","cre","sku","flo","moj","lud","rd","gru","hhb","vhr"]
 
 def mutateLayer(genome,nucleotide):
     newGenome = deepcopy(genome)
@@ -94,14 +97,35 @@ def reverseGenome(genome):
     return newGenome
 def shuffleGenome(genome):
     newGenome = deepcopy(genome)
-    random.shuffle(newGenome["layers"])
-    random.shuffle(newGenome["colours"])
+    idx = range(newGenome["size"])
+    random.shuffle(idx)
+    newGenome["layers"] = newGenome["layers"][idx]
+    newGenome["colours"] = newGenome["colours"][idx]
+    return newGenome
+def baseColour(genome):
+    newGenome = deepcopy(genome)
+    newGenome["baseColour"] = random.randint(0, 15)
+    return newGenome
+def grow(genome,nucleotide):
+    newGenome = deepcopy(genome)
+    newGenome["layers"].insert(nucleotide,random.randint(1, 38))
+    newGenome["colours"].insert(nucleotide,random.randint(0, 15))
+    newGenome["size"]+=1
+    return newGenome
+def shrink(genome,nucleotide):
+    newGenome = deepcopy(genome)
+    if newGenome["size"] == 1:
+        return newGenome
+    newGenome["layers"].pop(nucleotide)
+    newGenome["colours"].pop(nucleotide)
+    newGenome["size"]-=1
     return newGenome
 
 
 def mutate(genome):
     nucleotideToMutate = random.randint(0,genome["size"]-1)
-    mutationType = random.choice(["layer","colour","both","swapBoth","shuffle"])
+    mutationType = random.choice(["layer","colour","both","swapBoth","shiftLeft","shiftRight","baseColour","reverse","shuffle"])
+    #mutationType = random.choice(["layer","colour","both","swapBoth","shiftLeft","shiftRight","baseColour","reverse","shuffle","grow","shrink"])
     if mutationType == "layer":
         return mutateLayer(genome,nucleotideToMutate)
     if mutationType == "colour":
@@ -117,19 +141,26 @@ def mutate(genome):
     if mutationType == "reverse":
         return reverseGenome(genome)
     if mutationType == "shuffle":
-        return shuffleGenome(genome)
+        return reverseGenome(genome)
+    if mutationType == "baseColour":
+        return baseColour(genome)
+    if mutationType == "grow":
+        return grow(genome,nucleotideToMutate)
+    if mutationType == "shrink":
+        return shrink(genome,nucleotideToMutate)
 
 def randomGenomeOfSize(size):
     layers = list(map(lambda i: random.randint(1, 38),range(size)))
     colours = list(map(lambda i: random.randint(0, 15),layers ))
-    return {"layers": layers, "colours": colours, "size":size, "fitness":None, "render":None}
+    return {"baseColour":0, "layers": layers, "colours": colours, "size":size, "fitness":None, "render":None}
 
 def evaluateGenome(genome,target):
     if genome["fitness"] is not None:
         return genome
     genomeCopy = deepcopy(genome)
     genomeCopy["render"] = np.asarray(renderBanner(genome))[:,:,:3]
-    genomeCopy["fitness"] = np.sum(np.absolute(genomeCopy["render"] - target)) + genomeCopy["size"]*100
+    #genomeCopy["fitness"] = np.mean(np.square(genomeCopy["render"] - target)) + genome["size"]*1_000
+    genomeCopy["fitness"] = np.mean(np.square(genomeCopy["render"] - target))
     return genomeCopy
 
 def palletiseImage(img):
@@ -162,17 +193,34 @@ for i in range(GENERATIONS):
     #order by fitness
     population = sorted(population, key=lambda d: d["fitness"])
     if lastBest["fitness"] > population[0]["fitness"]:
-        print(str(i) + " best performing fitness: " + str(population[0]["fitness"]) +" size: "+str(population[0]["size"]))
         tmpImg = Image.fromarray(population[0]["render"])
         tmpImg.save(os.path.join(os.path.dirname(__file__), "outputs/output"+str(outcount)+".png"))
         lastBest = population[0]
         outcount+=1
+    print("gen: " + str(i) + " best fitness: " + str(population[0]["fitness"]),end='\r')
     #keep only best in population
-    population = population[:int(len(population)/4)]
+    population = population[:int(len(population)/2)]
     #repopulate using childs of above
-    while len(population) < POPULATION_SIZE:
-        child = mutate(random.choice(population))#allow childs of childs
+    children = []
+    while len(population) + len(children) < POPULATION_SIZE:
+        parent = None
+        for p in population:
+            parent = p
+            if random.choice([True, False, False, False]):
+                break
+        child = mutate(parent)
         child["fitness"] = None
-        population.append(child)
-    population = list(map(lambda x: evaluateGenome(x,targetImage), population))
+        children.append(child)
+    population = list(map(lambda x: evaluateGenome(x,targetImage), population + children))
+
+def finalOutput(genome):
+    command = "/give @p " + pallete[genome["baseColour"]][0] +"_banner{BlockEntityTag:{Base:"+str(genome["baseColour"])+",Patterns:["
+    bannerAsString = []
+    for i in range(genome["size"]):
+        bannerAsString.append("{Pattern:"+patternNames[genome["layers"][i]-1]+",Color:"+str(genome["colours"][i])+"}")
+    command = command + ','.join(bannerAsString) + "]}} 1"
+    print(command)
+    if len(command)>256:
+        print("COMMAND TO BIG TO PASTE INTO CHAT, USE COMMAND BLOCK")
+finalOutput(lastBest)
 
